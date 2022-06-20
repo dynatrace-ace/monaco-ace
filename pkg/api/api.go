@@ -49,6 +49,11 @@ var apiMap = map[string]apiInput{
 	"extension": {
 		apiPath:                      "/api/config/v1/extensions",
 		propertyNameOfGetAllResponse: "extensions",
+		childApis: []apiInput{{
+			apiPath:                      "/api/config/v1/extensions/{EXTENSIONID}/instances",
+			propertyNameOfGetAllResponse: "configurationsList",
+			isChildApi:                   true,
+		}},
 	},
 	"custom-service-java": {
 		apiPath: "/api/config/v1/service/customServices/java",
@@ -256,6 +261,8 @@ type Api interface {
 	IsStandardApi() bool
 	IsSingleConfigurationApi() bool
 	IsNonUniqueNameApi() bool
+	HasChildApis() bool
+	GetChildApis() []Api
 	NewIdValue() Value
 }
 
@@ -264,6 +271,8 @@ type apiInput struct {
 	propertyNameOfGetAllResponse string
 	isSingleConfigurationApi     bool
 	isNonUniqueNameApi           bool
+	isChildApi                   bool
+	childApis                    []apiInput
 }
 
 type apiImpl struct {
@@ -272,20 +281,26 @@ type apiImpl struct {
 	propertyNameOfGetAllResponse string
 	isSingleConfigurationApi     bool
 	isNonUniqueNameApi           bool
+	isChildApi                   bool
+	childApis                    []Api
 }
 
 func NewApis() map[string]Api {
 
 	apis := make(map[string]Api)
 
+	//apiMap["extension"].ChildEndpoint := append(apiMap["extension"].ChildEndpoint, apiInput{apiPath: "/api/config/v1/contentResources"})
+
 	for id, details := range apiMap {
 		apis[id] = newApi(id, details)
 	}
-
 	return apis
 }
 
 func newApi(id string, input apiInput) Api {
+	if input.childApis != nil {
+		return NewNestedApi(id, input.apiPath, input.propertyNameOfGetAllResponse, input.isNonUniqueNameApi, input.childApis)
+	}
 	if input.isSingleConfigurationApi {
 		return NewSingleConfigurationApi(id, input.apiPath)
 	}
@@ -294,20 +309,28 @@ func newApi(id string, input apiInput) Api {
 		return NewStandardApi(id, input.apiPath, input.isNonUniqueNameApi)
 	}
 
-	return NewApi(id, input.apiPath, input.propertyNameOfGetAllResponse, false, input.isNonUniqueNameApi)
+	return NewApi(id, input.apiPath, input.propertyNameOfGetAllResponse, false, input.isNonUniqueNameApi, nil, false)
+}
+func NewNestedApi(id string, apiPath string, getProperty string, isNonUniqueNameApi bool, childApis []apiInput) Api {
+	var newApis []Api
+	for _, details := range childApis {
+		childApi := NewApi(details.apiPath, details.apiPath, details.propertyNameOfGetAllResponse, details.isSingleConfigurationApi, details.isNonUniqueNameApi, nil, details.isChildApi)
+		newApis = append(newApis, childApi)
+	}
+	return NewApi(id, apiPath, getProperty, false, isNonUniqueNameApi, newApis, false)
 }
 
 // NewStandardApi creates an API with propertyNameOfGetAllResponse set to "values"
 func NewStandardApi(id string, apiPath string, isNonUniqueNameApi bool) Api {
-	return NewApi(id, apiPath, standardApiPropertyNameOfGetAllResponse, false, isNonUniqueNameApi)
+	return NewApi(id, apiPath, standardApiPropertyNameOfGetAllResponse, false, isNonUniqueNameApi, nil, false)
 }
 
 // NewSingleConfigurationApi creates an API with isSingleConfigurationApi set to true
 func NewSingleConfigurationApi(id string, apiPath string) Api {
-	return NewApi(id, apiPath, "", true, false)
+	return NewApi(id, apiPath, "", true, false, nil, false)
 }
 
-func NewApi(id string, apiPath string, propertyNameOfGetAllResponse string, isSingleConfigurationApi bool, isNonUniqueNameApi bool) Api {
+func NewApi(id string, apiPath string, propertyNameOfGetAllResponse string, isSingleConfigurationApi bool, isNonUniqueNameApi bool, childApis []Api, isChildApi bool) Api {
 
 	// TODO log warning if the user tries to create an API with a id not present in map above
 	// This means that a user runs monaco with an untested api
@@ -318,6 +341,8 @@ func NewApi(id string, apiPath string, propertyNameOfGetAllResponse string, isSi
 		propertyNameOfGetAllResponse: propertyNameOfGetAllResponse,
 		isSingleConfigurationApi:     isSingleConfigurationApi,
 		isNonUniqueNameApi:           isNonUniqueNameApi,
+		childApis:                    childApis,
+		isChildApi:                   isChildApi,
 	}
 }
 
@@ -370,6 +395,12 @@ func (a *apiImpl) NewIdValue() Value {
 func IsApi(dir string) bool {
 	_, ok := apiMap[dir]
 	return ok
+}
+func (a *apiImpl) HasChildApis() bool {
+	return a.childApis != nil
+}
+func (a *apiImpl) GetChildApis() []Api {
+	return a.childApis
 }
 
 // tests if part of project folder path contains an API

@@ -35,7 +35,8 @@ type JSONCreator interface {
 }
 
 //JSONCreatorImp object
-type JsonCreatorImp struct{}
+type JsonCreatorImp struct {
+}
 
 //NewJSONCreator creates a new instance of the jsonCreator
 func NewJSONCreator() *JsonCreatorImp {
@@ -56,7 +57,7 @@ func (d *JsonCreatorImp) CreateJSONConfig(fs afero.Fs, client rest.DynatraceClie
 		return "", "", true, nil
 	}
 
-	jsonfile, name, cleanName, err := processJSONFile(data, value.Id, value.Name, api)
+	jsonfile, name, cleanName, err := processJSONFile(d, data, value.Id, value.Name, api)
 	if err != nil {
 		util.Log.Error("error processing jsonfile %s", api.GetId())
 		return "", "", false, err
@@ -94,13 +95,13 @@ func getDetailFromAPI(client rest.DynatraceClient, api api.Api, name string) (da
 }
 
 //processJSONFile removes and replaces properties for each json config to make them compatible with monaco standard
-func processJSONFile(dat map[string]interface{}, id string, name string, api api.Api) ([]byte, string, string, error) {
+func processJSONFile(d *JsonCreatorImp, dat map[string]interface{}, id string, name string, api api.Api) ([]byte, string, string, error) {
 
 	name, err := getNameForConfig(name, dat, api)
 	if err != nil {
 		return nil, "", "", err
 	}
-	dat = replaceKeyProperties(dat)
+	dat = replaceKeyProperties(d, id, dat)
 
 	cleanName := "" //for using as the json filename
 	isNonUniqueNameApi := api.IsNonUniqueNameApi()
@@ -121,8 +122,9 @@ func processJSONFile(dat map[string]interface{}, id string, name string, api api
 }
 
 //replaceKeyProperties replaces name or displayname for each config
-func replaceKeyProperties(dat map[string]interface{}) map[string]interface{} {
+func replaceKeyProperties(d *JsonCreatorImp, id string, dat map[string]interface{}) map[string]interface{} {
 	//removes id field
+
 	delete(dat, "id")
 
 	// Removes metadata field

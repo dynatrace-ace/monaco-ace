@@ -7,7 +7,7 @@
 bin/
 /monaco
 /monaco.exe
-
+/local
 # Log files
 /cmd/monaco/.logs
 /.logs
