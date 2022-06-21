@@ -50,6 +50,7 @@ var apiMap = map[string]apiInput{
 		apiPath:                      "/api/config/v1/extensions",
 		propertyNameOfGetAllResponse: "extensions",
 		childApis: []apiInput{{
+			id:                           "{EXTENSIONID}",
 			apiPath:                      "/api/config/v1/extensions/{EXTENSIONID}/instances",
 			propertyNameOfGetAllResponse: "configurationsList",
 			isChildApi:                   true,
@@ -264,9 +265,11 @@ type Api interface {
 	HasChildApis() bool
 	GetChildApis() []Api
 	NewIdValue() Value
+	UpdateApiPath(apiId string)
 }
 
 type apiInput struct {
+	id                           string
 	apiPath                      string
 	propertyNameOfGetAllResponse string
 	isSingleConfigurationApi     bool
@@ -314,7 +317,7 @@ func newApi(id string, input apiInput) Api {
 func NewNestedApi(id string, apiPath string, getProperty string, isNonUniqueNameApi bool, childApis []apiInput) Api {
 	var newApis []Api
 	for _, details := range childApis {
-		childApi := NewApi(details.apiPath, details.apiPath, details.propertyNameOfGetAllResponse, details.isSingleConfigurationApi, details.isNonUniqueNameApi, nil, details.isChildApi)
+		childApi := NewApi(details.id, details.apiPath, details.propertyNameOfGetAllResponse, details.isSingleConfigurationApi, details.isNonUniqueNameApi, nil, details.isChildApi)
 		newApis = append(newApis, childApi)
 	}
 	return NewApi(id, apiPath, getProperty, false, isNonUniqueNameApi, newApis, false)
@@ -401,6 +404,11 @@ func (a *apiImpl) HasChildApis() bool {
 }
 func (a *apiImpl) GetChildApis() []Api {
 	return a.childApis
+}
+func (a *apiImpl) UpdateApiPath(apiId string) {
+	a.id = strings.ReplaceAll(a.id, "{EXTENSIONID}", apiId)
+	a.apiPath = strings.ReplaceAll(a.apiPath, "{EXTENSIONID}", apiId)
+
 }
 
 // tests if part of project folder path contains an API

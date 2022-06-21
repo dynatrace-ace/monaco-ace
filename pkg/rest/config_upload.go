@@ -395,7 +395,7 @@ func unmarshalJson(theApi api.Api, err error, resp Response) (error, []api.Value
 
 	var values []api.Value
 	var objmap map[string]interface{}
-
+	util.Log.Debug("api id %s", theApi.GetId())
 	// This API returns an untyped list as a response -> it needs a special handling
 	if theApi.GetId() == "aws-credentials" {
 

@@ -129,7 +129,7 @@ func downloadConfigFromEnvironment(fs afero.Fs, environment environment.Environm
 				util.Log.Error("error getting configs from API %v %v", api.GetId())
 			}
 		} else if hasChildApi {
-			errorAPI := createConfigsFromNestedApi(fs, api, token, path, client, jcreator, ycreator)
+			errorAPI := createConfigsFromNestedApi(fs, api, token, path, client, jcreator, ycreator, environmentName)
 			if errorAPI != nil {
 				util.Log.Error("error getting configs from API %v %v", api.GetId())
 			}
@@ -196,6 +196,7 @@ func createConfigsFromNestedApi(
 	client rest.DynatraceClient,
 	jcreator jsoncreator.JSONCreator,
 	ycreator yamlcreator.YamlCreator,
+	environmentName string,
 ) (err error) {
 	//retrieves all objects for the main api
 	values, err := client.List(api)
@@ -213,12 +214,10 @@ func createConfigsFromNestedApi(
 		util.Log.Error("error creating folder for api %v %v", api.GetId(), err)
 		return err
 	}
-	ConfigIds := make([]string, 0)
 	for _, val := range values {
 		util.Log.Debug("getting detail %s", val)
 		cont++
 		util.Log.Debug("REQUEST counter %v", cont)
-		ConfigIds = append(ConfigIds, val.Id)
 		_, cleanName, filter, err := jcreator.CreateJSONConfig(fs, client, api, val, subPath)
 		if err != nil {
 			util.Log.Error("error creating config api json file: %v", err)
@@ -227,9 +226,21 @@ func createConfigsFromNestedApi(
 		if filter {
 			continue
 		}
-
 		jsonFileName := cleanName + ".json"
 		ycreator.UpdateConfig(val.Id, val.Name, jsonFileName)
+
+		childApis := api.GetChildApis()
+		for _, child := range childApis {
+			childPath := filepath.Join(fullpath, api.GetId())
+			child.UpdateApiPath(val.Id)
+			jcreatorChild := jsoncreator.NewJSONCreator()
+			ycreatorChild := yamlcreator.NewYamlConfig(environmentName)
+			err := createConfigsFromAPI(fs, child, token, childPath, client, jcreatorChild, ycreatorChild)
+			if err != nil {
+				util.Log.Error("error getting nested api: %v", err)
+				return err
+			}
+		}
 	}
 	apiId := api.GetId()
 	err = ycreator.WriteYamlFile(fs, subPath, apiId)
@@ -237,16 +248,7 @@ func createConfigsFromNestedApi(
 		util.Log.Error("error creating config api yaml file: %v", err)
 		return err
 	}
-	childApis := api.GetChildApis()
-	for _, child := range childApis {
-		childPath := filepath.Join(fullpath, api.GetId())
-		//child.UpdateApiWithKey()
-		err := createConfigsFromAPI(fs, child, token, childPath, client, jcreator, ycreator)
-		if err != nil {
-			util.Log.Error("error getting nested api: %v", err)
-			return err
-		}
-	}
+
 	return nil
 }
 
